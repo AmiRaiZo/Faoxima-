@@ -1429,7 +1429,9 @@ diagnose_table_failure() {
 
 port_is_free() {
     local port="$1"
-    ! ss -tuln 2>/dev/null | grep -q ":${port} "
+    # Faoxima needs TCP listeners for HTTP/HTTPS. UDP sockets on the same
+    # numeric port (for example, QUIC on UDP/443) do not conflict with TCP.
+    ! ss -ltn 2>/dev/null | grep -q ":${port} "
 }
 
 ensure_firewall_ports_open() {
@@ -1464,7 +1466,7 @@ ensure_firewall_ports_open() {
 describe_port_occupant() {
     local port="$1" cid cname cproject line pid pname
 
-    cid=$(docker ps --format '{{.ID}}\t{{.Ports}}' 2>/dev/null | grep -E "0\.0\.0\.0:${port}->|:::${port}->" | cut -f1 | head -1)
+    cid=$(docker ps --format '{{.ID}}\t{{.Ports}}' 2>/dev/null | grep -E ":${port}->[^,]*/tcp" | cut -f1 | head -1)
     if [ -n "$cid" ]; then
         cname=$(docker inspect --format='{{.Name}}' "$cid" 2>/dev/null | sed 's#^/##')
         cproject=$(docker inspect --format='{{ index .Config.Labels "com.docker.compose.project" }}' "$cid" 2>/dev/null)
@@ -1472,7 +1474,7 @@ describe_port_occupant() {
         return 0
     fi
 
-    line=$(ss -tulnp 2>/dev/null | grep -E ":${port} " | head -1)
+    line=$(ss -ltnp 2>/dev/null | grep -E ":${port} " | head -1)
     pid=$(printf '%s' "$line" | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)
     pname=$(printf '%s' "$line" | grep -oE 'users:\(\("[^"]+"' | head -1 | sed -E 's/users:\(\("//; s/"//')
     if [ -n "$pid" ] || [ -n "$pname" ]; then
