@@ -1,0 +1,9 @@
+[mysqld]
+# Conservative defaults for small VPS instances; the installer optimizer can
+# raise these limits after measuring the host and running containers.
+performance_schema = OFF
+innodb_buffer_pool_size = 128M
+max_connections = 50
+table_open_cache = 400
+tmp_table_size = 16M
+max_heap_table_size = 16M
