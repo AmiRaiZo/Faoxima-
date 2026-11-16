@@ -1700,46 +1700,44 @@ prompt_version_selection() {
         fi
     done <<< "$release_json"
 
-    if [ "${#tags[@]}" -eq 0 ]; then
-        ui_err "Could not fetch the release list from GitHub." >&2
-        return 1
-    fi
-
+    # The main branch is always a valid source, even when the repository has
+    # no published GitHub Releases or the Releases API is temporarily empty.
     local visible_count="${#tags[@]}"
     [ "$visible_count" -gt 5 ] && visible_count=5
-    local custom_option=0 beta_option
+    local custom_option=0 main_option=1
 
     {
-        printf '\n'
-        local i
+        printf '\\n'
+        printf '  %s%2d)%s Latest main branch %s(recommended; newest GitHub code)%s\\n' "$C_YELLOW" "$main_option" "$C_RESET" "$C_GREEN" "$C_RESET"
+        local i release_option
         for ((i = 0; i < visible_count; i++)); do
+            release_option=$((i + 2))
             if [ "${tags[$i]}" = "$latest_tag" ]; then
-                printf '  %s%2d)%s %s %s(latest)%s\n' "$C_YELLOW" "$((i + 1))" "$C_RESET" "${tags[$i]}" "$C_GREEN" "$C_RESET"
+                printf '  %s%2d)%s %s %s(latest release)%s\\n' "$C_YELLOW" "$release_option" "$C_RESET" "${tags[$i]}" "$C_GREEN" "$C_RESET"
             elif [ "${prereleases[$i]}" = "1" ]; then
-                printf '  %s%2d)%s %s %s(pre-release)%s\n' "$C_YELLOW" "$((i + 1))" "$C_RESET" "${tags[$i]}" "$C_YELLOW" "$C_RESET"
+                printf '  %s%2d)%s %s %s(pre-release)%s\\n' "$C_YELLOW" "$release_option" "$C_RESET" "${tags[$i]}" "$C_YELLOW" "$C_RESET"
             else
-                printf '  %s%2d)%s %s\n' "$C_YELLOW" "$((i + 1))" "$C_RESET" "${tags[$i]}"
+                printf '  %s%2d)%s %s\\n' "$C_YELLOW" "$release_option" "$C_RESET" "${tags[$i]}"
             fi
         done
         if [ "${#tags[@]}" -gt "$visible_count" ]; then
-            custom_option=$((visible_count + 1))
-            printf '  %s%2d)%s Custom Version\n' "$C_YELLOW" "$custom_option" "$C_RESET"
+            custom_option=$((visible_count + 2))
+            printf '  %s%2d)%s Custom Version\\n' "$C_YELLOW" "$custom_option" "$C_RESET"
         fi
-        beta_option=$((visible_count + 1))
-        [ "$custom_option" -gt 0 ] && beta_option=$((custom_option + 1))
-        printf '  %s%2d)%s Beta (latest main branch, no official release)\n' "$C_YELLOW" "$beta_option" "$C_RESET"
     } >&2
 
-    local pick max_option="$beta_option"
-    printf '\n  %s❯%s Select a version [1-%d]: ' "$C_YELLOW" "$C_RESET" "$max_option" >&2
+    local max_option=$((visible_count + 1)) pick
+    [ "$custom_option" -gt 0 ] && max_option="$custom_option"
+    printf '\\n  %s❯%s Select a version [1-%d] (Enter = main): ' "$C_YELLOW" "$C_RESET" "$max_option" >&2
     read -r pick
+    [ -n "$pick" ] || pick=1
 
     if [[ ! "$pick" =~ ^[0-9]+$ ]] || [ "$pick" -lt 1 ] || [ "$pick" -gt "$max_option" ]; then
         ui_err "Invalid selection." >&2
         return 1
     fi
 
-    if [ "$pick" -eq "$beta_option" ]; then
+    if [ "$pick" -eq "$main_option" ]; then
         printf 'beta'
         return 0
     fi
@@ -1763,7 +1761,7 @@ prompt_version_selection() {
         return 0
     fi
 
-    printf '%s' "${tags[$((pick - 1))]}"
+    printf '%s' "${tags[$((pick - 2))]}"
 }
 
 resolve_zip_url() {
@@ -3060,8 +3058,8 @@ update_bot_source() {
 update_bot() {
     show_logo
     ui_panel "UPDATE FAOXIMA BOT" "$C_BOLD$C_BLUE" "$C_BLUE" \
-        "${C_WHITE}Update from the latest GitHub release, or from a manually-provided ZIP.${C_RESET}" \
-        "${C_DIM}Latest config.php code is installed while existing credentials and .env values are preserved.${C_RESET}"
+        "${C_WHITE}Update from the latest GitHub main branch or select an official release.${C_RESET}" \
+        "${C_DIM}The first option downloads the newest main-branch code; existing credentials and .env values are preserved.${C_RESET}"
 
     ensure_host_prerequisites || { ui_err "Host prerequisites could not be installed."; exit 1; }
 
