@@ -2,6 +2,8 @@ FROM php:8.2-fpm
 
 ARG PUID=33
 ARG PGID=33
+# Keep extension compilation memory-safe on small VPS instances.
+ARG PHP_BUILD_JOBS=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -19,7 +21,7 @@ RUN apt-get update \
         default-mysql-client \
         cron \
     && docker-php-ext-configure gd --with-jpeg --with-freetype \
-    && docker-php-ext-install -j"$(nproc)" mysqli pdo_mysql mbstring zip gd curl soap \
+    && docker-php-ext-install -j"${PHP_BUILD_JOBS}" mysqli pdo_mysql mbstring zip gd curl soap \
     && (pecl install ssh2-1.3.1 && docker-php-ext-enable ssh2 || echo "ssh2 extension build failed or unsupported; continuing without it") \
     && (pecl install redis && docker-php-ext-enable redis || echo "redis extension build failed or unsupported; continuing without it") \
     && rm -rf /var/lib/apt/lists/*
