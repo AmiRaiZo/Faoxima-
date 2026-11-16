@@ -230,6 +230,9 @@ if (!function_exists('vpn_ui_login')) {
     {
         static $tokenCache = [];
         $baseUrl = vpn_ui_normalize_base_url((string) ($panel['url_panel'] ?? ''));
+        if ($baseUrl === null) {
+            return ['ok' => false, 'token' => null, 'msg' => 'Invalid VPN Panel URL. Use https://host:port/amc or host:port/amc'];
+        }
         $username = trim((string) ($panel['username_panel'] ?? ''));
         $password = (string) ($panel['password_panel'] ?? '');
         $cacheKey = hash('sha256', $baseUrl . "\0" . $username . "\0" . $password);
@@ -248,10 +251,8 @@ if (!function_exists('vpn_ui_login')) {
                 return ['ok' => true, 'token' => $storedToken, 'msg' => ''];
             }
         }
-        if ($baseUrl === null || $username === '' || $password === '') {
-            return ['ok' => false, 'token' => null, 'msg' => $baseUrl === null
-                ? 'Invalid VPN Panel URL. Use https://host:port/amc or host:port/amc'
-                : 'VPN Panel URL, Super Admin username and password are required'];
+        if ($username === '' || $password === '') {
+            return ['ok' => false, 'token' => null, 'msg' => 'VPN Panel URL, Super Admin username and password are required'];
         }
         $response = vpn_ui_http_request($baseUrl, 'POST', '/api/auth/login', [
             'username' => $username,
