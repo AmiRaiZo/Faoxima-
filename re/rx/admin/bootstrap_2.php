@@ -1854,13 +1854,22 @@ $paycount
     step('add_link_panel', $from_id);
 } elseif ($user['step'] == "add_link_panel") {
     if (!isset($update['message']) && empty($text)) { return; }
-    if (!filter_var($text, FILTER_VALIDATE_URL)) {
-        nm_adminInstantReply($from_id, $textbotlang['Admin']['managepanel']['Invalid-domain'], $backadmin, 'HTML');
-        return;
-    }
-    $normalizedPanelUrl = rtrim($text, '/');
-    savedata("save", "url_panel", $normalizedPanelUrl);
     $userdata = json_decode($user['Processing_value'], true);
+    if (is_array($userdata) && ($userdata['type'] ?? '') === 'vpn_ui') {
+        $normalizedPanelUrl = vpn_ui_normalize_base_url((string) $text);
+        if ($normalizedPanelUrl === null) {
+            nm_adminInstantReply($from_id, "❌ آدرس VPN-UI معتبر نیست. نمونه صحیح:\nhttps://vpn.example.com:8443/amc\nیا بدون پروتکل: vpn.example.com:8443/amc", $backadmin, 'HTML');
+            return;
+        }
+    } else {
+        $panelUrlInput = trim((string) $text);
+        if (!filter_var($panelUrlInput, FILTER_VALIDATE_URL)) {
+            nm_adminInstantReply($from_id, $textbotlang['Admin']['managepanel']['Invalid-domain'], $backadmin, 'HTML');
+            return;
+        }
+        $normalizedPanelUrl = rtrim($panelUrlInput, '/');
+    }
+    savedata("save", "url_panel", $normalizedPanelUrl);
     if (!is_array($userdata) || empty($userdata['type']) || empty($userdata['namepanel'])) {
         nm_adminInstantReply($from_id, "❌ اطلاعات افزودن پنل ناقص یا منقضی شده است. لطفاً افزودن پنل را از ابتدا انجام دهید.", $keyboardtypepanel, 'HTML');
         step('home', $from_id);
@@ -2458,13 +2467,22 @@ elseif ($user['step'] == "switchtype_pick" && preg_match('/switchtype#(.*)/', $d
     }
 } elseif ($user['step'] == "switchtype_link_panel") {
     if (!isset($update['message']) && empty($text)) { return; }
-    if (!filter_var($text, FILTER_VALIDATE_URL)) {
-        nm_adminInstantReply($from_id, $textbotlang['Admin']['managepanel']['Invalid-domain'], $backadmin, 'HTML');
-        return;
-    }
-    $normalizedPanelUrl = rtrim($text, '/');
-    savedata("save", "url_panel", $normalizedPanelUrl);
     $userdata = json_decode($user['Processing_value'], true);
+    if (is_array($userdata) && ($userdata['new_type'] ?? '') === 'vpn_ui') {
+        $normalizedPanelUrl = vpn_ui_normalize_base_url((string) $text);
+        if ($normalizedPanelUrl === null) {
+            nm_adminInstantReply($from_id, "❌ آدرس VPN-UI معتبر نیست. نمونه صحیح:\nhttps://vpn.example.com:8443/amc\nیا بدون پروتکل: vpn.example.com:8443/amc", $backadmin, 'HTML');
+            return;
+        }
+    } else {
+        $panelUrlInput = trim((string) $text);
+        if (!filter_var($panelUrlInput, FILTER_VALIDATE_URL)) {
+            nm_adminInstantReply($from_id, $textbotlang['Admin']['managepanel']['Invalid-domain'], $backadmin, 'HTML');
+            return;
+        }
+        $normalizedPanelUrl = rtrim($panelUrlInput, '/');
+    }
+    savedata("save", "url_panel", $normalizedPanelUrl);
     if ($userdata['new_type'] == "guard") {
         savedata("save", "username", "null");
         savedata("save", "password", "null");
