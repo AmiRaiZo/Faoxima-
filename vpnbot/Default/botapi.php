@@ -12,15 +12,33 @@ function telegram($method, $datas = [],$botToken = null)
     }
     $url = "https://api.telegram.org/bot" . $ApiToken . "/" . $method;
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $datas);
+    $timeout = 8;
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POSTFIELDS => $datas,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_NOSIGNAL => true,
+        CURLOPT_TCP_KEEPALIVE => 1,
+    ]);
     $res = curl_exec($ch);
-    if (curl_error($ch)) {
-        var_dump(curl_error($ch));
-    } else {
-        return json_decode($res,true);
+    $curlError = curl_error($ch);
+    $curlErrno = curl_errno($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($res === false || $curlErrno !== 0) {
+        error_log(sprintf('[vpnbot] Telegram API %s failed (curl %d): %s', (string) $method, $curlErrno, $curlError));
+        return null;
     }
+
+    $decoded = json_decode((string) $res, true);
+    if (!is_array($decoded)) {
+        error_log(sprintf('[vpnbot] Telegram API %s returned invalid JSON (HTTP %d)', (string) $method, $httpCode));
+        return null;
+    }
+    return $decoded;
 }
 function sendmessage($chat_id,$text,$keyboard,$parse_mode){
     return telegram('sendmessage',[

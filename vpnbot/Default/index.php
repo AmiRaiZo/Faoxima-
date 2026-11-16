@@ -82,15 +82,21 @@ function resolveGlobalCustomVolumeFlag(array $setting, array $settingmain)
 function resolveGlobalCustomVolumeFlagFromShopSettings()
 {
     global $customVolumeFlagKeys;
-    foreach ($customVolumeFlagKeys as $key) {
-        $row = select("shopSetting", "*", "Namevalue", $key, "select");
-        if (!is_array($row)) {
-            continue;
-        }
-        $candidate = $row['value'] ?? $row['Value'] ?? null;
-        $normalized = normalizeBooleanFlag($candidate);
-        if ($normalized !== null) {
-            return $normalized;
+    global $pdo;
+    if ($pdo instanceof PDO) {
+        try {
+            $placeholders = implode(',', array_fill(0, count($customVolumeFlagKeys), '?'));
+            $stmt = $pdo->prepare("SELECT Namevalue, value FROM shopSetting WHERE Namevalue IN ($placeholders)");
+            $stmt->execute($customVolumeFlagKeys);
+            $storedFlags = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+            foreach ($customVolumeFlagKeys as $flagKey) {
+                $normalized = normalizeBooleanFlag($storedFlags[$flagKey] ?? null);
+                if ($normalized !== null) {
+                    return $normalized;
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('[vpnbot] custom volume setting lookup failed: ' . $e->getMessage());
         }
     }
     return null;
@@ -178,11 +184,13 @@ if ($globalCustomVolumeFlag === null) {
     }
 }
 $showcard = 1;
-$users_ids = select("user", "*", "bottype", $ApiToken, "FETCH_COLUMN");
 if (!is_dir('data')) {
     mkdir('data');
 }
-if (!in_array($from_id, $users_ids) && $settingmain['statusnewuser'] == "onnewuser" && $from_id != 0) {
+$knownBotUserStmt = $pdo->prepare("SELECT 1 FROM user WHERE id = :user_id AND bottype = :bot_token LIMIT 1");
+$knownBotUserStmt->execute([':user_id' => $from_id, ':bot_token' => $ApiToken]);
+$isKnownBotUser = (bool) $knownBotUserStmt->fetchColumn();
+if (!$isKnownBotUser && $settingmain['statusnewuser'] == "onnewuser" && $from_id != 0) {
 
     $newuser = sprintf($textbotlang['Admin']['ManageUser']['newuser'], $first_name, $username, "<a href = \"tg://user?id=$from_id\">$from_id</a>");
     foreach ($admin_ids as $admin) {
@@ -225,15 +233,25 @@ if ($from_id != 0) {
 $user = select("user", "*", "id", $from_id, "select");
 $user['Balance'] = json_decode(file_get_contents("data/$from_id/$from_id.json"), true)['Balance'];
 $usernameinvoice = select("invoice", "username", null, null, "FETCH_COLUMN");
-$buyreport = select("topicid", "idreport", "report", "buyreport", "select")['idreport'];
-$reportnight = select("topicid", "idreport", "report", "reportnight", "select")['idreport'];
-$reporttest = select("topicid", "idreport", "report", "reporttest", "select")['idreport'];
-$errorreport = select("topicid", "idreport", "report", "errorreport", "select")['idreport'];
-$porsantreport = select("topicid", "idreport", "report", "porsantreport", "select")['idreport'];
-$reportcron = select("topicid", "idreport", "report", "reportcron", "select")['idreport'];
-$otherservice = select("topicid", "idreport", "report", "otherservice", "select")['idreport'];
-
-$paymentreports = select("topicid", "idreport", "report", "paymentreport", "select")['idreport'];
+$reportKeys = ['buyreport', 'reportnight', 'reporttest', 'errorreport', 'porsantreport', 'reportcron', 'otherservice', 'paymentreport'];
+$reportIds = array_fill_keys($reportKeys, null);
+$reportPlaceholders = implode(',', array_fill(0, count($reportKeys), '?'));
+$reportStmt = $pdo->prepare("SELECT report, idreport FROM topicid WHERE report IN ($reportPlaceholders)");
+$reportStmt->execute($reportKeys);
+while ($reportRow = $reportStmt->fetch(PDO::FETCH_ASSOC)) {
+    $reportKey = (string) ($reportRow['report'] ?? '');
+    if (array_key_exists($reportKey, $reportIds)) {
+        $reportIds[$reportKey] = $reportRow['idreport'] ?? null;
+    }
+}
+$buyreport = $reportIds['buyreport'];
+$reportnight = $reportIds['reportnight'];
+$reporttest = $reportIds['reporttest'];
+$errorreport = $reportIds['errorreport'];
+$porsantreport = $reportIds['porsantreport'];
+$reportcron = $reportIds['reportcron'];
+$otherservice = $reportIds['otherservice'];
+$paymentreports = $reportIds['paymentreport'];
 $admin_idsmain = select("admin", "id_admin", null, null, "FETCH_COLUMN");
 $id_invoice = select("invoice", "id_invoice", null, null, "FETCH_COLUMN");
 $userbot = select("user", "*", "id", $dataBase['id_user'], "select");
