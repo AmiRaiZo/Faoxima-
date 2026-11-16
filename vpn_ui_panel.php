@@ -1,5 +1,45 @@
 <?php
 
+/**
+ * Normalize VPN-UI base URLs while preserving reverse-proxy mount paths.
+ * Bare host:port/path values are treated as HTTPS URLs.
+ */
+if (!function_exists('vpn_ui_normalize_base_url')) {
+    function vpn_ui_normalize_base_url(string $url): ?string
+    {
+        $url = trim($url);
+        if ($url === '' || preg_match('/[\r\n\s]/', $url)) {
+            return null;
+        }
+
+        if (strpos($url, '//') === 0) {
+            $url = 'https:' . $url;
+        } elseif (!preg_match('~^[a-z][a-z0-9+.-]*://~i', $url)) {
+            // Accept common input such as vpn.example.com:8443/amc.
+            $url = 'https://' . $url;
+        }
+
+        $parts = parse_url($url);
+        if (!is_array($parts)
+            || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            || trim((string) ($parts['host'] ?? '')) === ''
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || isset($parts['query'])
+            || isset($parts['fragment'])
+            || filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        if (isset($parts['port']) && ((int) $parts['port'] < 1 || (int) $parts['port'] > 65535)) {
+            return null;
+        }
+
+        // Keep paths such as /amc intact: API requests are made below this prefix.
+        return rtrim($url, '/');
+    }
+}
+
 /** Minimal adapter for the FastAPI VPN Panel used by Faoxima. */
 if (!function_exists('vpn_ui_http_request')) {
     function vpn_ui_http_request(string $baseUrl, string $method, string $path, ?array $payload = null, ?string $token = null): array
@@ -7,9 +47,9 @@ if (!function_exists('vpn_ui_http_request')) {
         if (!function_exists('curl_init')) {
             return ['ok' => false, 'status' => 0, 'data' => null, 'msg' => 'PHP cURL extension is required'];
         }
-        $baseUrl = rtrim(trim($baseUrl), '/');
-        if (!filter_var($baseUrl, FILTER_VALIDATE_URL) || !in_array(strtolower((string) parse_url($baseUrl, PHP_URL_SCHEME)), ['http', 'https'], true)) {
-            return ['ok' => false, 'status' => 0, 'data' => null, 'msg' => 'Invalid VPN Panel URL'];
+        $baseUrl = vpn_ui_normalize_base_url($baseUrl);
+        if ($baseUrl === null) {
+            return ['ok' => false, 'status' => 0, 'data' => null, 'msg' => 'Invalid VPN Panel URL. Use https://host:port/amc or host:port/amc'];
         }
         $url = $baseUrl . '/' . ltrim($path, '/');
         $headers = ['Accept: application/json', 'Content-Type: application/json'];
@@ -189,7 +229,7 @@ if (!function_exists('vpn_ui_login')) {
     function vpn_ui_login(array $panel, bool $force = false): array
     {
         static $tokenCache = [];
-        $baseUrl = rtrim(trim((string) ($panel['url_panel'] ?? '')), '/');
+        $baseUrl = vpn_ui_normalize_base_url((string) ($panel['url_panel'] ?? ''));
         $username = trim((string) ($panel['username_panel'] ?? ''));
         $password = (string) ($panel['password_panel'] ?? '');
         $cacheKey = hash('sha256', $baseUrl . "\0" . $username . "\0" . $password);
@@ -208,8 +248,10 @@ if (!function_exists('vpn_ui_login')) {
                 return ['ok' => true, 'token' => $storedToken, 'msg' => ''];
             }
         }
-        if ($baseUrl === '' || $username === '' || $password === '') {
-            return ['ok' => false, 'token' => null, 'msg' => 'VPN Panel URL, Super Admin username and password are required'];
+        if ($baseUrl === null || $username === '' || $password === '') {
+            return ['ok' => false, 'token' => null, 'msg' => $baseUrl === null
+                ? 'Invalid VPN Panel URL. Use https://host:port/amc or host:port/amc'
+                : 'VPN Panel URL, Super Admin username and password are required'];
         }
         $response = vpn_ui_http_request($baseUrl, 'POST', '/api/auth/login', [
             'username' => $username,
@@ -257,7 +299,11 @@ if (!function_exists('vpn_ui_api_request')) {
 if (!function_exists('vpn_ui_test_connection')) {
     function vpn_ui_test_connection(string $url, string $username, string $password): array
     {
-        $panel = ['url_panel' => rtrim(trim($url), '/'), 'username_panel' => trim($username), 'password_panel' => $password];
+        $normalizedUrl = vpn_ui_normalize_base_url($url);
+        if ($normalizedUrl === null) {
+            return ['status' => false, 'msg' => 'Invalid VPN Panel URL. Use https://host:port/amc or host:port/amc'];
+        }
+        $panel = ['url_panel' => $normalizedUrl, 'username_panel' => trim($username), 'password_panel' => $password];
         $login = vpn_ui_login($panel, true);
         return ['status' => !empty($login['ok']), 'msg' => $login['msg'] ?? ''];
     }
