@@ -1681,9 +1681,9 @@ verify_runtime_permissions() {
 
 prompt_version_selection() {
     local tags=() prereleases=() release_json latest_tag current_tag line
-    release_json=$(curl -fsSL "https://api.github.com/repos/${FAOXIMA_REPO}/releases?per_page=100" 2>/dev/null)
+    release_json=$(curl -fsSL "https://api.github.com/repos/${FAOXIMA_REPO}/releases?per_page=100" 2>/dev/null || true)
     latest_tag=$(curl -fsSL "https://api.github.com/repos/${FAOXIMA_REPO}/releases/latest" 2>/dev/null \
-        | grep -m1 '"tag_name"' | cut -d'"' -f4)
+        | grep -m1 '"tag_name"' | cut -d'"' -f4 || true)
 
     while IFS= read -r line; do
         if [[ "$line" == *'"tag_name"'* ]]; then
