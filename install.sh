@@ -1707,28 +1707,28 @@ prompt_version_selection() {
     local custom_option=0 main_option=1
 
     {
-        printf '\\n'
-        printf '  %s%2d)%s Latest main branch %s(recommended; newest GitHub code)%s\\n' "$C_YELLOW" "$main_option" "$C_RESET" "$C_GREEN" "$C_RESET"
+        printf '\n'
+        printf '  %s%2d)%s Latest main branch %s(recommended; newest GitHub code)%s\n' "$C_YELLOW" "$main_option" "$C_RESET" "$C_GREEN" "$C_RESET"
         local i release_option
         for ((i = 0; i < visible_count; i++)); do
             release_option=$((i + 2))
             if [ "${tags[$i]}" = "$latest_tag" ]; then
-                printf '  %s%2d)%s %s %s(latest release)%s\\n' "$C_YELLOW" "$release_option" "$C_RESET" "${tags[$i]}" "$C_GREEN" "$C_RESET"
+                printf '  %s%2d)%s %s %s(latest release)%s\n' "$C_YELLOW" "$release_option" "$C_RESET" "${tags[$i]}" "$C_GREEN" "$C_RESET"
             elif [ "${prereleases[$i]}" = "1" ]; then
-                printf '  %s%2d)%s %s %s(pre-release)%s\\n' "$C_YELLOW" "$release_option" "$C_RESET" "${tags[$i]}" "$C_YELLOW" "$C_RESET"
+                printf '  %s%2d)%s %s %s(pre-release)%s\n' "$C_YELLOW" "$release_option" "$C_RESET" "${tags[$i]}" "$C_YELLOW" "$C_RESET"
             else
-                printf '  %s%2d)%s %s\\n' "$C_YELLOW" "$release_option" "$C_RESET" "${tags[$i]}"
+                printf '  %s%2d)%s %s\n' "$C_YELLOW" "$release_option" "$C_RESET" "${tags[$i]}"
             fi
         done
         if [ "${#tags[@]}" -gt "$visible_count" ]; then
             custom_option=$((visible_count + 2))
-            printf '  %s%2d)%s Custom Version\\n' "$C_YELLOW" "$custom_option" "$C_RESET"
+            printf '  %s%2d)%s Custom Version\n' "$C_YELLOW" "$custom_option" "$C_RESET"
         fi
     } >&2
 
     local max_option=$((visible_count + 1)) pick
     [ "$custom_option" -gt 0 ] && max_option="$custom_option"
-    printf '\\n  %s❯%s Select a version [1-%d] (Enter = main): ' "$C_YELLOW" "$C_RESET" "$max_option" >&2
+    printf '\n  %s❯%s Select a version [1-%d] (Enter = main): ' "$C_YELLOW" "$C_RESET" "$max_option" >&2
     read -r pick
     [ -n "$pick" ] || pick=1
 
