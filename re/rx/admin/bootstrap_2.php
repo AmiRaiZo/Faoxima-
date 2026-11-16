@@ -169,6 +169,87 @@ if (function_exists('rxPremiumEmojiCancelKind')
 }
 unset($rx_pem_entry_step);
 
+// Route panel-type callbacks before generic admin handlers. Some legacy handlers
+// consume callback updates before the panel wizard gets a chance to process them.
+$rxPanelTypeMap = [
+    'marzban' => 'marzban',
+    'rebecca' => 'rebecca',
+    'pasarguard' => 'pasarguard',
+    'pasargard' => 'pasarguard',
+    'remnawave' => 'remnawave',
+    'guard' => 'guard',
+    'x-ui_single' => 'x-ui_single',
+    'vpn_ui' => 'vpn_ui',
+    'Manualsale' => 'Manualsale',
+];
+
+if (is_string($datain ?? null) && preg_match('/^typepanel#([A-Za-z0-9_]+)$/D', $datain, $rxPanelTypeMatch)) {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator' || !isset($rxPanelTypeMap[$rxPanelTypeMatch[1]])) {
+        if (!empty($callback_query_id)) {
+            telegram('answerCallbackQuery', ['callback_query_id' => $callback_query_id, 'text' => 'دسترسی یا نوع پنل نامعتبر است.', 'show_alert' => true]);
+        }
+        return;
+    }
+
+    $selectedPanelType = $rxPanelTypeMap[$rxPanelTypeMatch[1]];
+    $addPanelBackKeyboard = $backadmin;
+    if (!empty($setting['inlinebtnmain']) && $setting['inlinebtnmain'] === 'oninline') {
+        $addPanelBackKeyboard = json_encode([
+            'inline_keyboard' => [[['text' => $textbotlang['Admin']['backadmin'], 'callback_data' => 'admin']]],
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    savedata('clear', 'type', $selectedPanelType);
+    step('add_name_panel', $from_id);
+    if (!empty($callback_query_id)) {
+        telegram('answerCallbackQuery', ['callback_query_id' => $callback_query_id, 'text' => 'نوع پنل انتخاب شد.', 'show_alert' => false]);
+    }
+    nm_adminInstantReply($from_id, $textbotlang['Admin']['managepanel']['addpanelname'], $addPanelBackKeyboard, 'HTML');
+    return;
+}
+
+if (is_string($datain ?? null) && preg_match('/^switchtype#([A-Za-z0-9_]+)$/D', $datain, $rxSwitchTypeMatch)) {
+    if (($adminrulecheck['rule'] ?? '') !== 'administrator' || !isset($rxPanelTypeMap[$rxSwitchTypeMatch[1]])) {
+        if (!empty($callback_query_id)) {
+            telegram('answerCallbackQuery', ['callback_query_id' => $callback_query_id, 'text' => 'دسترسی یا نوع پنل نامعتبر است.', 'show_alert' => true]);
+        }
+        return;
+    }
+
+    $switchDraft = json_decode((string) ($user['Processing_value'] ?? ''), true);
+    $switchCode = trim((string) ($switchDraft['code_panel'] ?? ''));
+    $switchName = trim((string) ($switchDraft['name_panel'] ?? ''));
+    $switchPanelRow = $switchCode !== ''
+        ? select('marzban_panel', '*', 'code_panel', $switchCode, 'select', ['cache' => false])
+        : false;
+    if (!is_array($switchPanelRow) || empty($switchPanelRow)
+        || ($switchName !== '' && (string) ($switchPanelRow['name_panel'] ?? '') !== $switchName)) {
+        if (!empty($callback_query_id)) {
+            telegram('answerCallbackQuery', ['callback_query_id' => $callback_query_id, 'text' => 'اطلاعات پنل برای تغییر نوع پیدا نشد. دوباره پنل را انتخاب کنید.', 'show_alert' => true]);
+        }
+        step('home', $from_id);
+        return;
+    }
+
+    $newPanelType = $rxPanelTypeMap[$rxSwitchTypeMatch[1]];
+    savedata('save', 'new_type', $newPanelType);
+    if (!empty($callback_query_id)) {
+        telegram('answerCallbackQuery', ['callback_query_id' => $callback_query_id, 'text' => 'نوع پنل انتخاب شد.', 'show_alert' => false]);
+    }
+    if ($newPanelType === 'Manualsale') {
+        savedata('save', 'url_panel', 'null');
+        savedata('save', 'username', 'null');
+        savedata('save', 'password', 'null');
+        step('switchtype_confirm', $from_id);
+        nm_adminInstantReply($from_id, $textbotlang['Admin']['managepanel']['getlimitedpanel'], $backadmin, 'HTML');
+    } else {
+        step('switchtype_link_panel', $from_id);
+        nm_adminInstantReply($from_id, $textbotlang['Admin']['managepanel']['addpanelurl'], $backadmin, 'HTML');
+    }
+    return;
+}
+unset($rxPanelTypeMap, $rxPanelTypeMatch, $rxSwitchTypeMatch);
+
 if (function_exists('rxStartMediaHandleAdminUpdate')
     && rxStartMediaHandleAdminUpdate($from_id, $datain ?? '', $update ?? [], $user, ($adminrulecheck['rule'] ?? '') === "administrator")) {
     return;
